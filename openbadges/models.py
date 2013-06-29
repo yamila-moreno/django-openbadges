@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2012 Rooter Analysis S.L.
+# Copyright 2013 Rooter Analysis S.L.
+# Copyright 2013 Yamila Moreno <yamila.moreno@kaleidos.net>
+# Copyright 2013 Jesús Espino <jespinog@gmail.com>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,11 +16,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# It uses code from https://github.com/lmorchard/django-badger
-# Copyright (c) 2011, Mozilla    BSD 3-Clause License
-
 from django.conf import settings
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.urlresolvers import reverse
 from django.core.files import File
@@ -27,12 +26,10 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ugettext
-import Image, PngImagePlugin
+import Image
+import PngImagePlugin
 import hashlib
 import uuid
-import random
-import requests
-import io
 import tempfile
 
 
@@ -53,17 +50,18 @@ IDENTITY_CHOICES = (
 
 
 class Identity(models.Model):
-    user = models.OneToOneField(User, verbose_name=_(u'User identity'),
-        blank=False, null=False, related_name='identity')
-    type = models.CharField(verbose_name=_(u'Identity type'),
-        blank=False, null=False, max_length=255,
-        choices=IDENTITY_CHOICES, default=IDENTITY_CHOICES[0][0])
+    user = models.OneToOneField(get_user_model(), verbose_name=_(u'User identity'),
+                                blank=False, null=False,
+                                related_name='identity')
+    type = models.CharField(verbose_name=_(u'Identity type'), blank=False,
+                            null=False, max_length=255,
+                            choices=IDENTITY_CHOICES,
+                            default=IDENTITY_CHOICES[0][0])
     identity_hash = models.CharField(verbose_name=_(u'Identity hash'),
-        blank=True, null=False, max_length=255)
-    hashed = models.BooleanField(verbose_name=_(u'Hashed'),
-        default=True)
-    salt = models.CharField(verbose_name=_(u'Identity salt'),
-        blank=True, null=True, max_length=255)
+                                     blank=True, null=False, max_length=255)
+    hashed = models.BooleanField(verbose_name=_(u'Hashed'), default=True)
+    salt = models.CharField(verbose_name=_(u'Identity salt'), blank=True,
+                            null=True, max_length=255)
 
     class Meta:
         verbose_name = _(u'identity')
@@ -81,34 +79,33 @@ class Identity(models.Model):
         }
 
 
-
-
 class Badge(models.Model):
-    title = models.CharField(verbose_name=_(u'Name'),
-        blank=False, null=False, unique=True,
-        max_length=255, help_text=_(u'Short, descriptive title'))
+    title = models.CharField(verbose_name=_(u'Name'), blank=False, null=False,
+                             unique=True, max_length=255,
+                             help_text=_(u'Short, descriptive title'))
     description = models.TextField(verbose_name=_('Badge description'),
-        blank=False, null=False,
-        help_text=_(u'Longer description of the badge and its criteria'))
-    image = models.ImageField(verbose_name=_(u'Badge image'),
-        blank=False, null=False, upload_to='badges',
-        validators=[validate_png_image],
-        help_text=_(u'Upload an image to represent the badge, it must be png'))
-    criteria = models.CharField(verbose_name=_(u'Criteria'),
-        blank=False, null=False, max_length=255,
-        help_text=_(u'URL of the criteria for earning the achievement '
-                    u'(recomended: marked up this up with LRMI)'))
-    alignments = models.ManyToManyField('Alignment', verbose_name=_(u'Alignments'),
-        blank=True, null=True, related_name=_(u'alignments'))
-    tags = models.ManyToManyField('Tag', verbose_name=_(u'Tags'),
-        blank=True, null=True, related_name=_(u'tags'))
-    slug = models.SlugField(verbose_name=_(u'Badge slug (moocng)'),
-        blank=False, unique=True, null=False,
-        help_text=_(u'Very short name, for use in URLs and links'))
-    created = models.DateTimeField(verbose_name=_(u'Creation date and time (moocng)'),
-        auto_now_add=True, blank=False)
-    modified = models.DateTimeField(verbose_name=_(u'Last modification date and time (moocng)'),
-        auto_now=True, blank=False)
+                                   blank=False, null=False,
+                                   help_text=_(u'Longer description of the badge and its criteria'))
+    image = models.ImageField(verbose_name=_(u'Badge image'), blank=False,
+                              null=False, upload_to='badges',
+                              validators=[validate_png_image],
+                              help_text=_(u'Upload an image to represent the badge, it must be png'))
+    criteria = models.CharField(verbose_name=_(u'Criteria'), blank=False,
+                                null=False, max_length=255,
+                                help_text=_(u'URL of the criteria for earning the achievement (recomended: marked up this up with LRMI)'))
+    alignments = models.ManyToManyField('Alignment',
+                                        verbose_name=_(u'Alignments'),
+                                        blank=True, null=True,
+                                        related_name=_(u'alignments'))
+    tags = models.ManyToManyField('Tag', verbose_name=_(u'Tags'), blank=True,
+                                  null=True, related_name=_(u'tags'))
+    slug = models.SlugField(verbose_name=_(u'Badge slug'),
+                            blank=False, unique=True, null=False,
+                            help_text=_(u'Very short name, for use in URLs and links'))
+    created = models.DateTimeField(verbose_name=_(u'Creation date and time'),
+                                   auto_now_add=True, blank=False)
+    modified = models.DateTimeField(verbose_name=_(u'Last modification date and time'),
+                                    auto_now=True, blank=False)
 
     class Meta:
         ordering = ['-modified', '-created']
@@ -139,34 +136,34 @@ class Award(models.Model):
     If 'signed' type is needed, it's necessary to add
     corresponding fields and methods, and refactor in to_dict()
     """
-    uuid = models.CharField(verbose_name=_(u'Award uuid'),
-        db_index=True, max_length=255,
-        default=lambda: str(uuid.uuid1()))
-    user = models.ForeignKey(User, verbose_name=_(u'Awardee'),
-        blank=False, null=False, related_name='user_awards')
-    badge = models.ForeignKey('Badge', verbose_name=_(u'Badge'),
-        blank=False, null=False, related_name='awards_set')
+    uuid = models.CharField(verbose_name=_(u'Award uuid'), db_index=True,
+                            max_length=255, default=lambda: str(uuid.uuid1()))
+    user = models.ForeignKey(get_user_model(), verbose_name=_(u'Awardee'), blank=False,
+                             null=False, related_name='user_awards')
+    badge = models.ForeignKey('Badge', verbose_name=_(u'Badge'), blank=False,
+                              null=False, related_name='awards_set')
     awarded = models.DateTimeField(verbose_name=_(u'Awarding date and time'),
-        blank=False, null=False, auto_now_add=True)
+                                   blank=False, null=False, auto_now_add=True)
     evidence = models.CharField(verbose_name=_(u'URL with assertion evidence'),
-        blank=True, null=True, max_length=255)
-    image = models.ImageField(verbose_name=_(u'Image evidence'),
-        blank=True, null=True, upload_to='badges',
-        validators=[validate_png_image],
-        help_text=_("Image evidence, it must be png"))
-    expires = models.DateTimeField(verbose_name=_(u'When a badge should no longer be '
-        u'considered valid'), blank=True, null=True)
+                                blank=True, null=True, max_length=255)
+    image = models.ImageField(verbose_name=_(u'Image evidence'), blank=True,
+                              null=True, upload_to='badges',
+                              validators=[validate_png_image],
+                              help_text=_("Image evidence, it must be png"))
+    expires = models.DateTimeField(verbose_name=_(u'When a badge should no longer be considered valid'),
+                                   blank=True, null=True)
     modified = models.DateTimeField(verbose_name=_(u'Last modification date and time'),
-        blank=False, null=False, auto_now=True)
+                                    blank=False, null=False, auto_now=True)
     identity_type = models.CharField(verbose_name=_(u'Identity type'),
-        blank=True, null=False, max_length=255,
-        choices=IDENTITY_CHOICES, default=IDENTITY_CHOICES[0][0])
+                                     blank=True, null=False, max_length=255,
+                                     choices=IDENTITY_CHOICES,
+                                     default=IDENTITY_CHOICES[0][0])
     identity_hash = models.CharField(verbose_name=_(u'Identity hash'),
-        blank=True, null=False, max_length=255)
+                                     blank=True, null=False, max_length=255)
     identity_hashed = models.BooleanField(verbose_name=_(u'Hashed'),
-        default=True)
+                                          default=True)
     identity_salt = models.CharField(verbose_name=_(u'Identity salt'),
-        blank=True, null=True, max_length=255)
+                                     blank=True, null=True, max_length=255)
 
     class Meta:
         unique_together = ('user', 'badge')
@@ -180,7 +177,7 @@ class Award(models.Model):
     @property
     def revoked(self):
         try:
-            revocation = Revocation.objects.get(award=self)
+            Revocation.objects.get(award=self)
             return True
         except Revocation.DoesNotExist:
             return False
@@ -216,18 +213,18 @@ class Award(models.Model):
 
 
 class Issuer(models.Model):
-    name = models.CharField(verbose_name=_(u'Issuer name'),
-        blank=False, null=False, max_length=255)
-    url = models.CharField(verbose_name=_('Issuer url'),
-        blank=False, null=False, max_length=255)
-    description = models.TextField(verbose_name=_(u'Description'),
-        blank=True, null=True)
-    image = models.ImageField(verbose_name=_(u'Logo'),
-        blank=True, null=True, upload_to='badges',
-        validators=[validate_png_image],
-        help_text=_("Issuer logo, it must be png"))
-    email = models.CharField(verbose_name=_(u'Issuer email'),
-        blank=True, null=True, max_length=255)
+    name = models.CharField(verbose_name=_(u'Issuer name'), blank=False,
+                            null=False, max_length=255)
+    url = models.CharField(verbose_name=_('Issuer url'), blank=False,
+                           null=False, max_length=255)
+    description = models.TextField(verbose_name=_(u'Description'), blank=True,
+                                   null=True)
+    image = models.ImageField(verbose_name=_(u'Logo'), blank=True, null=True,
+                              upload_to='badges',
+                              validators=[validate_png_image],
+                              help_text=_("Issuer logo, it must be png"))
+    email = models.CharField(verbose_name=_(u'Issuer email'), blank=True,
+                             null=True, max_length=255)
 
     class Meta:
         verbose_name = _(u'issuer')
@@ -247,12 +244,10 @@ class Issuer(models.Model):
 
 
 class Revocation(models.Model):
-    award = models.ForeignKey('Award', verbose_name=_(u'Award'),
-        blank=False, null=False,
-        related_name='revocations')
+    award = models.ForeignKey('Award', verbose_name=_(u'Award'), blank=False,
+                              null=False, related_name='revocations')
     reason = models.CharField(verbose_name=_(u'Reason for revocation'),
-        blank=False, null=False,
-        max_length=255)
+                              blank=False, null=False, max_length=255)
 
     class Meta:
         verbose_name = _(u'revocation list')
@@ -268,12 +263,12 @@ class Revocation(models.Model):
 
 
 class Alignment(models.Model):
-    name = models.CharField(verbose_name=_(u'Name'),
-        blank=False, null=False, max_length=255)
-    url = models.CharField(verbose_name=_(u'Url'),
-        blank=False, null=False, max_length=255)
-    description = models.TextField(verbose_name=_('Description'),
-        blank=True, null=True)
+    name = models.CharField(verbose_name=_(u'Name'), blank=False, null=False,
+                            max_length=255)
+    url = models.CharField(verbose_name=_(u'Url'), blank=False, null=False,
+                           max_length=255)
+    description = models.TextField(verbose_name=_('Description'), blank=True,
+                                   null=True)
 
     class Meta:
         verbose_name = _(u'alignment')
@@ -291,8 +286,8 @@ class Alignment(models.Model):
 
 
 class Tag(models.Model):
-    name = models.CharField(verbose_name=_(u'Tag name'),
-        blank=False, null=False, max_length=255)
+    name = models.CharField(verbose_name=_(u'Tag name'), blank=False,
+                            null=False, max_length=255)
 
     class Meta:
         verbose_name = _(u'tag')
@@ -303,13 +298,13 @@ class Tag(models.Model):
 
 
 class Criterion(models.Model):
-    name = models.CharField(verbose_name=_(u'Criterion name'),
-        blank=False, null=False, max_length=255)
-    slug = models.SlugField(verbose_name=_(u'Criterion slug'),
-        blank=False, unique=True, null=False,
-        help_text=_(u'Very short name, for use in URLs and links'))
+    name = models.CharField(verbose_name=_(u'Criterion name'), blank=False,
+                            null=False, max_length=255)
+    slug = models.SlugField(verbose_name=_(u'Criterion slug'), blank=False,
+                            unique=True, null=False,
+                            help_text=_(u'Very short name, for use in URLs and links'))
     description = models.TextField(verbose_name=_(u'Criterion description'),
-        blank=False, null=False)
+                                   blank=False, null=False)
 
     class Meta:
         verbose_name = _(u'criterion')
@@ -330,7 +325,7 @@ def generate_obi_badge(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=Award, dispatch_uid="award_post_save_copy_image")
 def copy_image_to_award(sender, instance, created, **kwargs):
-     if created:
+    if created:
         im = Image.open(instance.badge.image)
         meta = PngImagePlugin.PngInfo()
         meta.add_text('openbadges', instance.get_absolute_url(), 0)
@@ -356,7 +351,7 @@ def save_identity_for_user(sender, instance, created, **kwargs):
         instance.save()
 
 
-@receiver(post_save, sender=User, dispatch_uid="user_post_save")
+@receiver(post_save, sender=get_user_model(), dispatch_uid="user_post_save")
 def create_identity_for_user(sender, instance, created, **kwargs):
     """
     Handler for create an identity on new users.
@@ -374,7 +369,7 @@ def create_identity_for_user(sender, instance, created, **kwargs):
     except:
         salt = uuid.uuid4().hex[:5]
         Identity.objects.create(
-            user = instance,
-            identity_hash = u'sha256$' + hashlib.sha256(instance.email + salt).hexdigest(),
-            salt = salt
+            user=instance,
+            identity_hash=u'sha256$' + hashlib.sha256(instance.email + salt).hexdigest(),
+            salt=salt
         )

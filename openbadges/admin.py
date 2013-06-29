@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2012 Rooter Analysis S.L.
+# Copyright 2013 Rooter Analysis S.L.
+# Copyright 2013 Yamila Moreno <yamila.moreno@kaleidos.net>
+# Copyright 2013 Jesús Espino <jespinog@gmail.com>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,8 +20,8 @@ from django.contrib import admin
 
 from django.utils.translation import ugettext_lazy as _
 
-from moocng.badges.models import Badge, Award, Revocation, Issuer, \
-            Alignment, Tag, Identity, Criterion
+from .models import (Badge, Award, Revocation, Issuer, Alignment, Tag,
+                     Identity, Criterion)
 
 
 def show_image(obj):
@@ -85,15 +87,3 @@ admin.site.register(Alignment, AlignmentAdmin)
 admin.site.register(Tag, TagAdmin)
 admin.site.register(Identity, IdentityAdmin)
 admin.site.register(Criterion, CriterionAdmin)
-"""
-from django.contrib.auth.models import User
-from django.contrib.auth.admin import UserAdmin
-class IdentityInline(admin.TabularInline):
-    model = Identity
-
-admin.site.unregister(User)
-UserAdmin.inlines = [
-    IdentityInline,
-]
-admin.site.register(User, UserAdmin)
-"""
