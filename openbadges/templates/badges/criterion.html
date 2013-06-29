@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% load i18n askboturl %}
+
+{% block useractions %}{% include "courses/include.useractions.html" %}{% endblock %}
+
+{% block content %}
+
+<p>
+    <big>{% blocktrans with title=criterion.name %}Criterion: {{ title }}{% endblocktrans %}</big>
+</p>
+<p>{{ criterion.description }}</p>
+
+{% endblock %}
