@@ -18,7 +18,7 @@
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, ImproperlyConfigured
 from django.core.urlresolvers import reverse
 from django.core.files import File
 from django.db import models
@@ -26,11 +26,16 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ugettext
+
 import Image
 import PngImagePlugin
 import hashlib
 import uuid
 import tempfile
+
+
+if settings.BADGES_BASE_URL is None:
+    raise ImproperlyConfigured("ERROR: Please set BADGES_BASE_URL in your settings file")
 
 
 def validate_png_image(value):
