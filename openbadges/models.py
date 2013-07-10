@@ -324,12 +324,6 @@ class Criterion(models.Model):
 
 @receiver(post_save, sender=Award, dispatch_uid="award_post_save_obi")
 def generate_obi_badge(sender, instance, created, **kwargs):
-    #print requests.get(settings.BADGES_OBI_BAKER_URL % instance.get_absolute_url())
-    pass
-
-
-@receiver(post_save, sender=Award, dispatch_uid="award_post_save_copy_image")
-def copy_image_to_award(sender, instance, created, **kwargs):
     if created:
         im = Image.open(instance.badge.image)
         meta = PngImagePlugin.PngInfo()
